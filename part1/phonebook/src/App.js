@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import Filter from "./components/Filter";
 import PersonForm from "./components/PersonForm";
 import People from "./components/People";
-import axios from "axios";
-
+import numbers from "./services/numbers";
 
 function App() {
 
     useEffect(() => {
-        axios.get('http://localhost:3001/persons').then((res) => {
-            setPeople(res.data);
-        })
+        numbers.getAll()
+            .then((people) => {
+                setPeople(people);
+            })
     }, [])
 
     const [newName, setNewName] = useState('');
@@ -25,9 +25,26 @@ function App() {
             phone: newPhone
         }
 
-        people.map((p) => {
-            return p.name === newName ? alert(`${newName} is already in the phonebook`) : setPeople(people.concat(person));
-        })
+        if (newName === '') return;
+
+        if (people.some((p) => p.name === newName)) {
+            const exists = window.confirm(`${newName} is already in the phonebook, replace the old number with a new number?`);
+            if (exists) {
+                const existingPerson = people.find(p => p.name === newName);
+                existingPerson.number = newPhone;
+                numbers.updateNumber(existingPerson).then(returnedPerson => {
+                    setPeople(people.map(p => p.id !== returnedPerson.id ? p : existingPerson));
+                    setNewName('');
+                    setNewPhone('');
+                })
+            }
+        } else {
+            numbers.create(person).then(returnedPerson => {
+                setPeople(people.concat(returnedPerson))
+                setNewName('');
+                setNewPhone('');
+            })
+        }
     }
 
     const handleOnChange = (e) => {
@@ -43,6 +60,17 @@ function App() {
         setPeople(people.filter(person => person.name.toLowerCase().includes(searchTerm.toLowerCase())));
     }
 
+    const handleDelete = (id) => {
+        const { name } = people.find(p => p.id === id);
+        const res = window.confirm(`Delete ${name}`)
+
+        return res
+            ? numbers.deleteNumber(id).then((res) => {
+                setPeople(people.filter((person) => person.id !== id));
+            })
+            : '';
+    }
+
     return (
         <div>
             <h2>Phonebook</h2>
@@ -55,7 +83,7 @@ function App() {
 
             <h2>Numbers</h2>
 
-            <People people={people}/>
+            <People people={people} handleDelete={handleDelete}/>
         </div>
     );
 }
